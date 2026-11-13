@@ -1,4 +1,10 @@
-import { enterRoute, resolveRoute, resetRoute } from "@/features/route";
+import {
+  enterRoute,
+  resolveRoute,
+  resetRoute,
+  upcomingShop,
+  reachableShopIds,
+} from "@/features/route";
 import {
   battleState,
   beginBattle,
@@ -20,12 +26,26 @@ import {
   useCamp,
   resetDeck,
 } from "@/features/deck";
-import { openReward, claimReward, resetReward } from "@/features/reward";
+import {
+  openReward,
+  claimReward,
+  spendVouchers,
+  refundVouchers,
+  voucherBalance,
+  expireDepartedVouchers,
+  rewardState,
+  setDraftCard,
+  setDraftHeal,
+  setDraftSupplies,
+  resetReward,
+} from "@/features/reward";
 import {
   openShop,
   preparePurchase,
   completePurchase,
   closeShop,
+  shopState,
+  cancelItem,
   resetShop,
 } from "@/features/shop";
 import {
@@ -39,6 +59,18 @@ import {
 import { save, clearSave } from "./persistence";
 function persist() {
   if (!save()) notify("本地保存失败，请保留当前页面。");
+}
+/**
+ * 每次路线推进后重新核对凭证的可用范围：绑定商店已经不在剩余路线上的凭证，
+ * 在此刻到期并明确记账。返回给玩家的说明，没有到期则为空。
+ */
+function settleVoucherExpiry(): string {
+  const expired = expireDepartedVouchers(reachableShopIds());
+  if (!expired.length) return "";
+  return ` · ${expired.length} 张凭证到期，销毁 ${expired.reduce(
+    (n, v) => n + v.destroyed,
+    0,
+  )} 面值`;
 }
 export function navigate(id: string) {
   if (session.ended) return;
@@ -55,8 +87,9 @@ export function navigate(id: string) {
     beginBattle(c, deckCards(), deckState.hero.hp, deckState.hero.maxHp);
     switchTab("battle");
   }
+  const expiry = settleVoucherExpiry();
   notify(
-    `进入 ${c.nodeId} · 威胁 ${c.influence.heat} / 好感 ${c.influence.favor}`,
+    `进入 ${c.nodeId} · 威胁 ${c.influence.heat} / 好感 ${c.influence.favor}${expiry}`,
   );
   persist();
 }
@@ -78,45 +111,124 @@ export function settle() {
     persist();
     return;
   }
-  if (openReward(JSON.parse(JSON.stringify(r)))) {
-    setHp(r.hp);
+  // 同一场胜利只结算一次：已经提交过的胜利不会再次改写生命或生成权益。
+  if (rewardState.history.includes(r.id)) {
     switchTab("reward");
-    notify("胜利！选择一张牌或跳过卡牌，金币都会结算。");
+    notify("这场胜利已经结算，预算不可重复领取。");
+    persist();
+    return;
+  }
+  // 预算已冻结但尚未提交：回到奖励页继续组合，不重新冻结或追加预算。
+  if (rewardState.offer?.source === r.id) {
+    switchTab("reward");
+    notify("本次胜利的预算已冻结，仍等待提交。");
+    persist();
+    return;
+  }
+  setHp(r.hp);
+  const merchant = upcomingShop(r.nodeId);
+  if (openReward(JSON.parse(JSON.stringify(r)), merchant)) {
+    switchTab("reward");
+    notify("胜利！冻结本次预算，组合卡牌、治疗、补给与凭证。");
+  } else {
+    switchTab("reward");
+    notify("这场胜利已经结算，预算不可重复领取。");
   }
   persist();
 }
-export function claim(skip: boolean) {
-  const grant = claimReward(skip);
-  if (!grant) return;
+export function draftCard(key: string | null) {
+  setDraftCard(key);
+  persist();
+}
+export function draftHeal(value: number) {
+  setDraftHeal(value);
+  persist();
+}
+export function draftSupplies(value: number) {
+  setDraftSupplies(value);
+  persist();
+}
+export function claim() {
+  const grant = claimReward();
+  if (!grant) {
+    notify("组合无效：请检查预算或先提交一次组合。");
+    return;
+  }
   if (grant.card) addCard(grant.card);
-  earnGold(grant.gold);
-  heal(grant.heal);
+  if (grant.heal) heal(grant.heal);
   resolveRoute();
+  const parts = [
+    grant.card ? "卡牌" : null,
+    grant.heal ? `${grant.heal} 点治疗` : null,
+    grant.voucher ? `${grant.voucher.faceValue} 面值凭证` : null,
+  ].filter(Boolean);
+  const summary = parts.length ? parts.join("、") : "未分配预算";
   if (session.context?.kind === "boss") {
     finishRun();
     notify("裂隙已被封存。你把余烬带回了黎明。");
-  } else notify("奖励已结算，新的路线开放。");
+  } else if (grant.voucher)
+    notify(`${summary} 已一起到账。凭证绑定 ${grant.voucher.merchant.title}。`);
+  else notify(`${summary} 已一起到账。剩余预算没有可绑定的商店，未生成凭证。`);
   switchTab("route");
   persist();
 }
 export function buy(id: string) {
-  const p = preparePurchase(id);
-  if (!p || !spendGold(p.price)) {
-    notify("无法购买：库存或金币不足。");
+  // 只接受已经核对过价格的待确认项，避免绕过确认直接扣款。
+  if (shopState.pendingId !== id) {
+    notify("请先核对价格并确认支付。");
     return;
   }
-  if (!completePurchase(p)) {
-    earnGold(p.price);
+  const p = preparePurchase(id);
+  if (!p) {
+    cancelItem();
+    notify("无法购买：库存已售罄。");
+    return;
+  }
+  if (!shopState.context) return;
+  const nodeId = shopState.context.nodeId;
+  const voucherUsed = Math.min(p.price, voucherBalance(nodeId));
+  const goldNeeded = p.price - voucherUsed;
+  if (goldNeeded > deckState.hero.gold) {
+    cancelItem();
+    notify("无法购买：凭证与金币加起来不足以支付完整价格，交易未发生。");
+    return;
+  }
+  // 先核对完整价格，再一并扣除凭证与金币；任何一步失败都整笔回滚。
+  const spent = spendVouchers(nodeId, voucherUsed);
+  if (spent.paid !== voucherUsed) {
+    refundVouchers(spent.spends);
+    cancelItem();
+    notify("无法购买：凭证余额在结算中发生变化，交易未发生。");
+    return;
+  }
+  if (goldNeeded > 0 && !spendGold(goldNeeded)) {
+    refundVouchers(spent.spends);
+    cancelItem();
+    notify("无法购买：金币不足，交易未发生。");
+    return;
+  }
+  const purchase = { ...p, voucherPaid: spent.paid, goldPaid: goldNeeded };
+  if (!completePurchase(purchase)) {
+    if (goldNeeded > 0) earnGold(goldNeeded);
+    refundVouchers(spent.spends);
+    cancelItem();
+    notify("无法购买：库存已变化，交易未发生。");
     return;
   }
   addCard(p.card);
-  notify("交易完成，卡牌已收入牌组。");
+  notify(
+    spent.paid
+      ? `交易完成：凭证抵扣 ${spent.paid}，金币支付 ${goldNeeded}。`
+      : "交易完成，卡牌已收入牌组。",
+  );
   persist();
 }
 export function leaveShop() {
   closeShop();
   resolveRoute();
+  const expiry = settleVoucherExpiry();
   switchTab("route");
+  notify(`你离开商店，继续上路${expiry}。`);
   persist();
 }
 export function camp(action: "rest" | "upgrade") {

@@ -57,18 +57,59 @@ export interface BattleResult {
   gold: number;
   context: JourneyContext;
 }
-export interface RewardOffer {
+export interface MerchantRef {
+  nodeId: string;
+  region: Region;
+  depth: number;
+  title: string;
+}
+export interface RewardCardOffer {
+  key: string;
+  cost: number;
+}
+export interface RewardCommit {
+  card: string | null;
+  heal: number;
+  supplies: number;
+  spent: number;
+  voucherValue: number;
+}
+/**
+ * 一次胜利的预算。预算在胜利结算时冻结，之后只能分配，不能追加。
+ * 奖励页的组合只是草稿，不会改动牌组或生命，提交时才一起到账。
+ */
+export interface VictoryBudget {
   id: string;
   source: string;
-  cards: string[];
-  gold: number;
-  heal: number;
+  nodeId: string;
+  region: Region;
+  budget: number;
+  cardOffers: RewardCardOffer[];
+  merchant: MerchantRef | null;
   claimed: boolean;
+  commit: RewardCommit | null;
+}
+export interface Voucher {
+  id: string;
+  rewardId: string;
+  source: string;
+  nodeId: string;
+  merchant: MerchantRef;
+  faceValue: number;
+  remaining: number;
+  status: "active" | "spent" | "expired";
+  destroyed: number;
+}
+export interface VoucherSpend {
+  voucherId: string;
+  amount: number;
 }
 export interface Purchase {
   id: string;
   card: string;
   price: number;
+  voucherPaid: number;
+  goldPaid: number;
 }
 export interface ExpeditionSummary {
   hp: number;

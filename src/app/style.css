@@ -753,3 +753,110 @@ footer span {
     padding: 16px 0;
   }
 }
+.reward-budget {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+.budget-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 15px;
+  border: 1px solid #3d4c32;
+  background: #20291f;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.budget-row > span {
+  min-width: 60px;
+  color: #a9b78f;
+}
+.budget-row b {
+  font-size: 13px;
+  color: #d6dfa9;
+}
+.budget-row small {
+  margin-left: auto;
+  color: #8d9c7a;
+  font-size: 10px;
+}
+.reward-preview {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 20px 0;
+}
+.reward-preview > div {
+  border: 1px dashed #49593a;
+  border-radius: 4px;
+  padding: 13px;
+}
+.reward-preview p {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #ced8a2;
+}
+.reward-preview small {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  color: #8d9c7a;
+}
+.notice.warn {
+  background: #38291f;
+  border-color: #8a5f42;
+  color: #e0b692;
+}
+.voucher-list {
+  margin: 18px 0 22px;
+}
+.voucher-list h3 {
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+.voucher {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 13px 16px;
+  border: 1px solid #6b5a35;
+  background: #2e2a1d;
+  border-radius: 4px;
+  margin-top: 9px;
+  font-size: 11px;
+}
+.voucher.active {
+  border-color: #b2a267;
+}
+.voucher.spent {
+  opacity: 0.45;
+}
+.voucher.expired {
+  opacity: 0.5;
+  background: #2a2320;
+  border-color: #6a4335;
+}
+.voucher b {
+  font-size: 13px;
+  color: #d9d3a5;
+}
+.voucher small {
+  display: block;
+  margin-top: 5px;
+  color: #948c6d;
+}
+.pay-split {
+  display: block;
+  margin-top: 4px;
+  font-size: 9px;
+  color: #a89f6f;
+}
+.stock > div.pending {
+  border-color: #c2ce81;
+  background: #2c3722;
+}
+.warn-text {
+  color: #e0a982;
+  font-size: 10px;
+}

@@ -96,7 +96,13 @@ const progress = computed(() => (routeState.visited.length / 9) * 100);
             @settle="commands.settle"
           /><RewardPanel
             v-else-if="session.tab === 'reward'"
+            :hp="deckState.hero.hp"
+            :max-hp="deckState.hero.maxHp"
+            :deck-size="deckState.cards.length"
             @claim="commands.claim"
+            @card="commands.draftCard"
+            @heal="commands.draftHeal"
+            @supplies="commands.draftSupplies"
           /><ShopPanel
             v-else-if="session.tab === 'shop'"
             :gold="deckState.hero.gold"

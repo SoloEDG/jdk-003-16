@@ -5,9 +5,10 @@ import { exportReward, restoreReward } from "@/features/reward";
 import { exportShop, restoreShop } from "@/features/shop";
 import { exportSession, restoreSession } from "./session";
 const KEY = "ember-path-v1";
+const VERSION = 2;
 function snapshot() {
   return {
-    version: 1,
+    version: VERSION,
     route: exportRoute(),
     battle: exportBattle(),
     deck: exportDeck(),
@@ -29,12 +30,14 @@ export function load() {
   if (!raw) return false;
   try {
     const d = JSON.parse(raw);
+    // 旧版存档（v1，三选一奖励）的结构与预算组合不兼容，直接视为无存档。
     if (
-      d.version !== 1 ||
+      d.version !== VERSION ||
       !Array.isArray(d.deck?.cards) ||
       !Array.isArray(d.route?.visited) ||
       !d.battle?.piles ||
       !Array.isArray(d.reward?.history) ||
+      !Array.isArray(d.reward?.vouchers) ||
       !Array.isArray(d.shop?.stock) ||
       !d.session
     )
